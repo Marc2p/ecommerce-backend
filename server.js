@@ -1,33 +1,40 @@
+// Importacion de modulos
 const dotenv = require("dotenv").config();
 const express = require("express");
 const { Socket } = require("socket.io");
+const session = require("express-session");
+const passport = require("passport");
+const MongoStore = require("connect-mongo");
+const flash = require('connect-flash');
+const cluster = require("cluster");
+
+// config Server y conexion bd
 const app = express();
 const server = require("http").Server(app);
 const io = require("socket.io")(server);
 require("./src/mongodb/mongooseLoader");
 const PORT = process.env.PORT || 8080;
+
+// utils
 const logger = require("./src/utils/logger");
-
-const session = require("express-session");
-const passport = require("passport");
 const passportStrategy = require("./src/utils/passport");
-const MongoStore = require("connect-mongo");
-const flash = require('connect-flash');
+const Chat = require("./src/daos/chat");
+let chat = new Chat();
 
+// cluster config
 const clusterMode = false;
-const cluster = require("cluster");
 const numCPUs = require("os").cpus().length;
 
+// Handlers-middlewares
 const errorHandler = require("./src/middlewares/errorHandler");
 const notFound = require("./src/middlewares/notFound");
 
+// rutas
 const apiProductos = require("./src/routes/productos");
 const apiCarritos = require("./src/routes/carritos");
 const login = require("./src/routes/login");
 const logout = require("./src/routes/logout");
 const register = require("./src/routes/register");
-const Chat = require("./src/daos/chat");
-let chat = new Chat();
 
 if (cluster.isMaster && clusterMode) {
   logger.info(`PID MASTER ${process.pid}`);
@@ -40,14 +47,13 @@ if (cluster.isMaster && clusterMode) {
   })
 }
 else {
-
   app.use(express.static("./public"));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   app.use(
     session({
-      secret: "AlckejcUi5Jnm3rFhNjUil87",
+      secret: process.env.SECRET_SESSION,
       resave: true,
       saveUninitialized: false,
       store: MongoStore.create({
@@ -74,16 +80,18 @@ else {
       io.sockets.emit("messages", messages);
     });
   });
-
+  
+  // rutas
   app.use("/api/productos", apiProductos);
   app.use("/api/carrito", apiCarritos);
   app.use("/api", login);
   app.use("/api", register);
   app.use("/api", logout);
 
+  // middlewares
   app.use(errorHandler);
   app.use(notFound);
-
+  
   const srv = server.listen(PORT, () => {
     logger.info(`(Pid: ${process.pid}) Servidor Express escuchando peticiones en el puerto ${srv.address().port}`);
   });
